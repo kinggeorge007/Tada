@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>TADA</title>
+  <meta name="description" content="TADA: notes, checklists and a calculator that work offline.">
+  <meta name="theme-color" content="#F4F5F1">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <script>
+    /* Apply the saved theme before the page paints, so there is no flash. */
+    (function () {
+      try {
+        var t = localStorage.getItem('tada.theme');
+        if (t === 'light' || t === 'dark' || t === 'system') {
+          document.documentElement.setAttribute('data-theme', t);
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+
+    <!-- HOME VIEW -->
+    <div id="view-home">
+      <header class="top">
+        <h1 class="wordmark" id="home-title" tabindex="-1">
+          <svg class="mark" width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+            <rect width="30" height="30" rx="8" fill="var(--accent)"/>
+            <path d="M8 15.5l4.5 4.5L22 10" fill="none" stroke="var(--on-accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          TADA
+        </h1>
+        <a class="icon-btn" id="open-settings" href="#settings" aria-label="Settings">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+          </svg>
+        </a>
+      </header>
+
+      <main class="content">
+        <section class="empty" aria-labelledby="empty-title">
+          <svg class="burst" width="132" height="132" viewBox="0 0 132 132" aria-hidden="true">
+            <rect x="26" y="30" width="80" height="80" rx="22" fill="var(--accent)"/>
+            <path d="M48 70l13 13 25-27" fill="none" stroke="var(--on-accent)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="22" cy="24" r="5" fill="#FFC247"/>
+            <circle cx="112" cy="20" r="4" fill="#4DE0B0"/>
+            <rect x="108" y="56" width="10" height="10" rx="2" transform="rotate(20 113 61)" fill="#FF7AA8"/>
+            <rect x="10" y="64" width="9" height="9" rx="2" transform="rotate(-15 14 68)" fill="#4DE0B0"/>
+            <circle cx="66" cy="12" r="4" fill="#FF7AA8"/>
+            <rect x="92" y="112" width="9" height="9" rx="2" transform="rotate(30 96 116)" fill="#FFC247"/>
+          </svg>
+          <h2 id="empty-title">Nothing here yet</h2>
+          <p>Your notes and checklists will show up on this screen. Use the setup check below to make sure TADA is ready on your phone.</p>
+        </section>
+
+        <section class="card" aria-labelledby="check-title">
+          <h2 class="card-title" id="check-title">Setup check</h2>
+          <ul class="rows">
+            <li class="row" id="row-offline" data-state="wait">
+              <span class="row-label">Works offline</span>
+              <span class="status"><span class="status-text">Checking…</span></span>
+            </li>
+            <li class="row" id="row-storage" data-state="wait">
+              <span class="row-label">Saves on this phone</span>
+              <span class="status"><span class="status-text">Checking…</span></span>
+            </li>
+            <li class="row" id="row-install" data-state="wait">
+              <span class="row-label">Installed as an app</span>
+              <span class="status"><span class="status-text">Checking…</span></span>
+            </li>
+          </ul>
+          <p class="hint" id="install-hint" hidden></p>
+          <button class="btn" id="install-btn" type="button" hidden>Install TADA</button>
+        </section>
+      </main>
+    </div>
+
+    <!-- SETTINGS VIEW -->
+    <div id="view-settings" hidden>
+      <header class="top">
+        <button class="icon-btn" id="settings-back" type="button" aria-label="Back">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 5l-7 7 7 7"/>
+          </svg>
+        </button>
+        <h1 class="page-title" id="settings-title" tabindex="-1">Settings</h1>
+        <span class="spacer" aria-hidden="true"></span>
+      </header>
+
+      <main class="content">
+        <section class="card">
+          <fieldset class="field">
+            <legend class="card-title">Appearance</legend>
+            <div class="seg">
+              <label><input type="radio" name="theme" value="light"><span>Light</span></label>
+              <label><input type="radio" name="theme" value="dark"><span>Dark</span></label>
+              <label><input type="radio" name="theme" value="system"><span>System</span></label>
+            </div>
+            <p class="hint">System follows your phone’s own light or dark setting.</p>
+          </fieldset>
+        </section>
+
+        <section class="card">
+          <h2 class="card-title">About</h2>
+          <ul class="rows">
+            <li class="row"><span class="row-label">Version</span><span class="value" id="version">1.0.0</span></li>
+            <li class="row"><span class="row-label">Your data</span><span class="value">Stays on this phone</span></li>
+          </ul>
+        </section>
+      </main>
+    </div>
+
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
