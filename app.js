@@ -1,8 +1,8 @@
-/* TADA stage 2: home screen, notes, search, filters, theme, setup check. */
+/* TADA stage 3: notes, checklists, search, filters, theme, setup check. */
 (function () {
   'use strict';
 
-  var APP_VERSION = '1.1.0';
+  var APP_VERSION = '1.2.0';
   var THEME_KEY = 'tada.theme';
   var THEME_COLORS = { light: '#F4F5F1', dark: '#121316' };
   var SAVE_DELAY = 400;
@@ -51,6 +51,8 @@
   /* =====================================================
      Storage (IndexedDB). Everything lives in `items`
      (in memory) and is written through to the database.
+     A note:  { id, type:'note', title, body, pinned, createdAt, updatedAt }
+     A list:  { id, type:'list', title, body:'', items:[{id,text,done}], pinned, createdAt, updatedAt }
      ===================================================== */
 
   var DB_NAME = 'tada';
@@ -110,6 +112,25 @@
     return null;
   }
 
+  function hasText(t) { return (t.text || '').trim() !== ''; }
+
+  // What actually gets stored: lists never keep blank tasks.
+  function persistable(it) {
+    if (it.type !== 'list') return it;
+    var copy = {};
+    Object.keys(it).forEach(function (k) { copy[k] = it[k]; });
+    copy.items = it.items.filter(hasText).map(function (t) {
+      return { id: t.id, text: t.text, done: !!t.done };
+    });
+    return copy;
+  }
+
+  function listStats(it) {
+    var tasks = (it.items || []).filter(hasText);
+    var done = tasks.filter(function (t) { return t.done; }).length;
+    return { total: tasks.length, done: done, tasks: tasks };
+  }
+
   /* =====================================================
      Small helpers
      ===================================================== */
@@ -133,14 +154,37 @@
     return d.toLocaleDateString([], opts);
   }
 
+  /* Toast message, with an optional action button such as Undo */
   var toastTimer = null;
-  function toast(message) {
-    var el = $('toast');
-    el.textContent = message;
-    el.hidden = false;
+  var toastAction = null;
+
+  function hideToast() {
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { el.hidden = true; }, 2600);
+    $('toast').hidden = true;
+    toastAction = null;
   }
+
+  function toast(message, actionLabel, actionFn) {
+    var btn = $('toast-action');
+    $('toast-text').textContent = message;
+    if (actionLabel) {
+      btn.textContent = actionLabel;
+      btn.hidden = false;
+      toastAction = actionFn;
+    } else {
+      btn.hidden = true;
+      toastAction = null;
+    }
+    $('toast').hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, actionLabel ? 6000 : 2600);
+  }
+
+  $('toast-action').addEventListener('click', function () {
+    var fn = toastAction;
+    hideToast();
+    if (fn) fn();
+  });
 
   function pinIcon(size) {
     var wrap = document.createElement('span');
@@ -151,11 +195,25 @@
     return wrap;
   }
 
+  function svgEl(markup) {
+    var span = document.createElement('span');
+    span.innerHTML = markup;
+    return span.firstChild;
+  }
+
+  var ICON_X = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+  var ICON_GRIP = '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><circle cx="9" cy="6" r="1.8"/><circle cx="15" cy="6" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="9" cy="18" r="1.8"/><circle cx="15" cy="18" r="1.8"/></svg>';
+
   /* =====================================================
-     Navigation between Home / Editor / Settings
+     Navigation between Home / Note / List / Settings
      ===================================================== */
 
-  var views = { home: $('view-home'), editor: $('view-editor'), settings: $('view-settings') };
+  var views = {
+    home: $('view-home'),
+    note: $('view-editor'),
+    list: $('view-list'),
+    settings: $('view-settings')
+  };
   var ready = false;
   var openedByApp = false;
 
@@ -177,13 +235,14 @@
     if (!ready) return;
     var hash = location.hash;
 
+    if (toastAction) hideToast();   // an Undo button only makes sense on its own screen
     if (current) leaveEditor();
 
-    var m = /^#note-([a-z0-9]+)$/.exec(hash);
+    var m = /^#(note|list)-([a-z0-9]+)$/.exec(hash);
     if (m) {
-      var item = findItem(m[1]) || (draft && draft.id === m[1] ? draft : null);
-      if (item) {
-        showView('editor');
+      var item = findItem(m[2]) || (draft && draft.id === m[2] ? draft : null);
+      if (item && item.type === m[1]) {
+        showView(item.type);
         openEditor(item);
         return;
       }
@@ -215,7 +274,7 @@
   });
 
   /* =====================================================
-     Home: toolbar, search, filters, list
+     Home: toolbar, search, filters, list of cards
      ===================================================== */
 
   var state = { query: '', filter: 'all', searchOpen: false };
@@ -248,7 +307,7 @@
     $('search-clear').hidden = state.query === '';
   }
 
-  function emptyState(totalVisibleFilter) {
+  function emptyState() {
     var box = document.createElement('section');
     box.className = 'empty';
     var title, text, showButton = false;
@@ -259,13 +318,13 @@
       text = 'Try different words, or clear the search or filter.';
     } else if (state.filter === 'list') {
       title = 'No checklists yet';
-      text = 'Checklists arrive in the next update.';
+      text = 'Tap the + button to make your first checklist.';
     } else if (state.filter === 'note' && items.length) {
       title = 'No notes yet';
       text = 'Tap the + button to write your first note.';
     } else {
-      title = 'No notes yet';
-      text = 'Write something down and it will show up here. Everything stays on this phone.';
+      title = 'Nothing here yet';
+      text = 'Write a note or make a checklist and it will show up here. Everything stays on this phone.';
       showButton = true;
     }
 
@@ -292,10 +351,11 @@
   }
 
   function cardEl(it) {
+    var isList = it.type === 'list';
     var li = document.createElement('li');
     var a = document.createElement('a');
     a.className = 'card-item';
-    a.href = '#' + (it.type === 'list' ? 'list-' : 'note-') + it.id;
+    a.href = '#' + (isList ? 'list-' : 'note-') + it.id;
 
     var head = document.createElement('div');
     head.className = 'card-head';
@@ -303,25 +363,57 @@
     title.className = 'item-title';
     var hasTitle = (it.title || '').trim() !== '';
     if (!hasTitle) title.classList.add('is-empty');
-    title.textContent = hasTitle ? it.title : (it.type === 'list' ? 'Untitled list' : 'Untitled note');
+    title.textContent = hasTitle ? it.title : (isList ? 'Untitled list' : 'Untitled note');
     head.appendChild(title);
     if (it.pinned) head.appendChild(pinIcon(16));
     a.appendChild(head);
 
     var preview = document.createElement('p');
     preview.className = 'card-preview';
-    var body = (it.body || '').replace(/\s+/g, ' ').trim().slice(0, 160);
-    preview.textContent = body || 'No additional text';
+    var stats = isList ? listStats(it) : null;
+
+    if (isList) {
+      if (stats.total === 0) {
+        preview.textContent = 'No tasks yet';
+      } else if (stats.done === stats.total) {
+        preview.textContent = 'All tasks done';
+      } else {
+        var open = stats.tasks.filter(function (t) { return !t.done; });
+        var shown = open.slice(0, 3).map(function (t) { return t.text.trim(); }).join(' · ');
+        if (open.length > 3) shown += ' · +' + (open.length - 3) + ' more';
+        preview.textContent = shown;
+      }
+    } else {
+      var body = (it.body || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+      preview.textContent = body || 'No additional text';
+    }
     a.appendChild(preview);
+
+    if (isList && stats.total > 0) {
+      var bar = document.createElement('div');
+      bar.className = 'mini-bar' + (stats.done === stats.total ? ' complete' : '');
+      bar.setAttribute('aria-hidden', 'true');
+      var fill = document.createElement('span');
+      fill.style.width = Math.round(stats.done / stats.total * 100) + '%';
+      bar.appendChild(fill);
+      a.appendChild(bar);
+    }
 
     var meta = document.createElement('div');
     meta.className = 'card-meta';
     var tag = document.createElement('span');
-    tag.className = 'tag ' + (it.type === 'list' ? 'tag-list' : 'tag-note');
-    tag.textContent = it.type === 'list' ? 'List' : 'Note';
+    tag.className = 'tag ' + (isList ? 'tag-list' : 'tag-note');
+    tag.textContent = isList ? 'List' : 'Note';
+    meta.appendChild(tag);
+    if (isList && stats.total > 0) {
+      var count = document.createElement('span');
+      count.className = 'card-count';
+      count.textContent = stats.done + ' of ' + stats.total + ' done';
+      meta.appendChild(count);
+    }
     var when = document.createElement('span');
     when.textContent = formatWhen(it.updatedAt);
-    meta.appendChild(tag); meta.appendChild(when);
+    meta.appendChild(when);
     a.appendChild(meta);
 
     li.appendChild(a);
@@ -406,71 +498,56 @@
   $('btn-add').addEventListener('click', function () { dlgAdd.showModal(); });
   $('add-cancel').addEventListener('click', function () { dlgAdd.close(); });
   $('add-note').addEventListener('click', function () { dlgAdd.close(); createNote(); });
+  $('add-list').addEventListener('click', function () { dlgAdd.close(); createList(); });
   dlgAdd.addEventListener('click', function (e) { if (e.target === dlgAdd) dlgAdd.close(); });
 
   /* =====================================================
-     Note editor with autosave
+     Editors (shared): autosave, pin, delete
      ===================================================== */
 
-  var current = null;   // the note being edited
-  var draft = null;     // a brand-new note that has no text yet (not saved)
+  var current = null;   // the note or list being edited
+  var draft = null;     // a brand-new item that has nothing in it yet (not saved)
   var dirty = false;
   var saveTimer = null;
 
-  var titleEl = $('note-title');
-  var bodyEl = $('note-body');
-  var statusEl = $('save-status');
-  var editedEl = $('edited-at');
-  var pinBtn = $('editor-pin');
+  var ui = {
+    note: {
+      title: $('note-title'), status: $('save-status'), edited: $('edited-at'),
+      pin: $('editor-pin'), del: $('editor-delete'), back: $('editor-back')
+    },
+    list: {
+      title: $('list-title'), status: $('list-save-status'), edited: $('list-edited-at'),
+      pin: $('list-pin'), del: $('list-delete'), back: $('list-back')
+    }
+  };
 
   function inItems(it) { return items.indexOf(it) !== -1; }
 
-  function autosize() {
-    bodyEl.style.height = 'auto';
-    bodyEl.style.height = bodyEl.scrollHeight + 'px';
+  function isEmptyItem(it) {
+    if ((it.title || '').trim() !== '') return false;
+    if (it.type === 'list') return !it.items.some(hasText);
+    return (it.body || '').trim() === '';
   }
 
-  function setStatus(text) { statusEl.textContent = text; }
+  function setStatus(text) { ui[current.type].status.textContent = text; }
 
   function setEdited() {
-    editedEl.textContent = inItems(current) ? 'Edited ' + formatWhen(current.updatedAt) : '';
+    ui[current.type].edited.textContent = inItems(current) ? 'Edited ' + formatWhen(current.updatedAt) : '';
   }
 
   function setPinUi() {
     var on = !!current.pinned;
-    pinBtn.setAttribute('aria-pressed', String(on));
-    pinBtn.setAttribute('aria-label', on ? 'Unpin note' : 'Pin note');
-    pinBtn.querySelector('svg').setAttribute('fill', on ? 'currentColor' : 'none');
+    var kind = current.type === 'list' ? 'list' : 'note';
+    var btn = ui[current.type].pin;
+    btn.setAttribute('aria-pressed', String(on));
+    btn.setAttribute('aria-label', (on ? 'Unpin ' : 'Pin ') + kind);
+    btn.querySelector('svg').setAttribute('fill', on ? 'currentColor' : 'none');
   }
 
-  function createNote() {
-    var now = Date.now();
-    draft = { id: newId(), type: 'note', title: '', body: '', pinned: false, createdAt: now, updatedAt: now };
-    openedByApp = true;
-    location.hash = '#note-' + draft.id;
-  }
-
-  function openEditor(item) {
-    current = item;
-    dirty = false;
-    titleEl.value = item.title || '';
-    bodyEl.value = item.body || '';
-    setPinUi();
-    setStatus(inItems(item) ? (dbOk ? 'Saved' : 'Not saved') : 'Not saved yet');
-    setEdited();
-    autosize();
-    if (!inItems(item)) titleEl.focus();
-  }
-
-  function onEdit() {
-    if (!current) return;
-    current.title = titleEl.value;
-    current.body = bodyEl.value;
-    autosize();
-
-    var empty = current.title.trim() === '' && current.body.trim() === '';
+  // Call after any change to the open note or list.
+  function markChanged() {
     if (!inItems(current)) {
-      if (empty) { setStatus('Not saved yet'); return; }
+      if (isEmptyItem(current)) { setStatus('Not saved yet'); return; }
       items.push(current);
       draft = null;
     }
@@ -486,7 +563,7 @@
     if (!current || !dirty || !inItems(current)) return Promise.resolve();
     var it = current;
     dirty = false;
-    return dbPut(it).then(function () {
+    return dbPut(persistable(it)).then(function () {
       if (current === it) { setStatus('Saved'); setEdited(); }
     }).catch(function () {
       dirty = true;
@@ -496,43 +573,58 @@
     });
   }
 
+  function openEditor(item) {
+    current = item;
+    dirty = false;
+    var u = ui[item.type];
+    u.title.value = item.title || '';
+    setPinUi();
+    setStatus(inItems(item) ? (dbOk ? 'Saved' : 'Not saved') : 'Not saved yet');
+    setEdited();
+    if (item.type === 'note') {
+      bodyEl.value = item.body || '';
+      autosize();
+    } else {
+      renderTasks();
+      updateProgress();
+      newTaskEl.value = '';
+    }
+    if (!inItems(item)) u.title.focus();
+  }
+
   function leaveEditor() {
     var it = current;
     flushSave();
     clearTimeout(saveTimer);
+    if (it && it.type === 'list') it.items = it.items.filter(hasText);
     current = null;
     dirty = false;
-    if (it && !inItems(it) && draft === it) draft = null; // empty new note: discard
+    if (it && !inItems(it) && draft === it) draft = null; // nothing was written: discard
   }
 
-  titleEl.addEventListener('input', onEdit);
-  bodyEl.addEventListener('input', onEdit);
-  titleEl.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') { e.preventDefault(); bodyEl.focus(); }
-  });
-
-  $('editor-back').addEventListener('click', closeView);
-
-  pinBtn.addEventListener('click', function () {
+  function onPinClick() {
     if (!current) return;
-    if (!inItems(current)) { toast('Write something first, then pin it.'); return; }
+    var kind = current.type === 'list' ? 'list' : 'note';
+    if (!inItems(current)) { toast('Add something first, then pin it.'); return; }
     current.pinned = !current.pinned;
     setPinUi();
-    dbPut(current).catch(function () { toast('Could not save the pin.'); });
+    dbPut(persistable(current)).catch(function () { toast('Could not save the pin.'); });
     toast(current.pinned ? 'Pinned to the top' : 'Unpinned');
-  });
+  }
 
-  /* Delete with confirmation */
   var dlgDelete = $('dlg-delete');
 
-  $('editor-delete').addEventListener('click', function () {
+  function onDeleteClick() {
     if (!current) return;
-    if (!inItems(current)) { // nothing was written yet, just leave
-      closeView();
-      return;
-    }
+    if (!inItems(current)) { closeView(); return; }  // nothing written yet, just leave
+    var isList = current.type === 'list';
+    $('del-title').textContent = isList ? 'Delete this list?' : 'Delete this note?';
+    $('del-text').textContent = isList
+      ? 'The list and all its tasks will be removed from this phone and can’t be brought back.'
+      : 'It will be removed from this phone and can’t be brought back.';
     dlgDelete.showModal();
-  });
+  }
+
   $('del-cancel').addEventListener('click', function () { dlgDelete.close(); });
   dlgDelete.addEventListener('click', function (e) { if (e.target === dlgDelete) dlgDelete.close(); });
 
@@ -546,14 +638,352 @@
     current = null;
     dbDelete(it.id).catch(function () { toast('Could not delete from storage.'); });
     closeView();
-    toast('Note deleted');
+    toast(it.type === 'list' ? 'List deleted' : 'Note deleted');
   });
 
-  /* Save when the app is hidden or closed */
+  ['note', 'list'].forEach(function (kind) {
+    ui[kind].pin.addEventListener('click', onPinClick);
+    ui[kind].del.addEventListener('click', onDeleteClick);
+    ui[kind].back.addEventListener('click', closeView);
+  });
+
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'hidden') flushSave();
   });
   window.addEventListener('pagehide', flushSave);
+
+  /* =====================================================
+     Notes
+     ===================================================== */
+
+  var titleEl = ui.note.title;
+  var bodyEl = $('note-body');
+
+  function autosize() {
+    bodyEl.style.height = 'auto';
+    bodyEl.style.height = bodyEl.scrollHeight + 'px';
+  }
+
+  function createNote() {
+    var now = Date.now();
+    draft = { id: newId(), type: 'note', title: '', body: '', pinned: false, createdAt: now, updatedAt: now };
+    openedByApp = true;
+    location.hash = '#note-' + draft.id;
+  }
+
+  function onNoteEdit() {
+    if (!current || current.type !== 'note') return;
+    current.title = titleEl.value;
+    current.body = bodyEl.value;
+    autosize();
+    markChanged();
+  }
+
+  titleEl.addEventListener('input', onNoteEdit);
+  bodyEl.addEventListener('input', onNoteEdit);
+  titleEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); bodyEl.focus(); }
+  });
+
+  /* =====================================================
+     Checklists
+     ===================================================== */
+
+  var listTitleEl = ui.list.title;
+  var taskListEl = $('task-list');
+  var noTasksEl = $('no-tasks');
+  var newTaskEl = $('new-task');
+  var liveEl = $('list-live');
+
+  function createList() {
+    var now = Date.now();
+    draft = { id: newId(), type: 'list', title: '', body: '', items: [], pinned: false, createdAt: now, updatedAt: now };
+    openedByApp = true;
+    location.hash = '#list-' + draft.id;
+  }
+
+  function sizeTextarea(ta) {
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  }
+
+  function announce(text) {
+    liveEl.textContent = '';
+    setTimeout(function () { liveEl.textContent = text; }, 30);
+  }
+
+  function updateProgress() {
+    var s = listStats(current);
+    var pct = s.total ? Math.round(s.done / s.total * 100) : 0;
+    var text;
+    if (s.total === 0) text = 'No tasks yet';
+    else if (s.done === s.total) text = s.total === 1 ? 'Done' : 'All ' + s.total + ' done';
+    else text = s.done + ' of ' + s.total + ' done';
+    $('progress-text').textContent = text;
+    $('progress-fill').style.width = pct + '%';
+    var bar = $('progress-bar');
+    bar.setAttribute('aria-valuenow', String(pct));
+    bar.setAttribute('aria-valuetext', text);
+    bar.classList.toggle('complete', s.total > 0 && s.done === s.total);
+  }
+
+  function taskLabel(t) {
+    return (t.done ? 'Mark not done: ' : 'Mark done: ') + (t.text.trim() || 'new task');
+  }
+
+  function renderTasks(focusId, focusWhat) {
+    taskListEl.textContent = '';
+    current.items.forEach(function (t) { taskListEl.appendChild(taskEl(t)); });
+    var none = current.items.length === 0;
+    taskListEl.hidden = none;
+    noTasksEl.hidden = !none;
+    Array.prototype.forEach.call(taskListEl.querySelectorAll('textarea'), sizeTextarea);
+    if (focusId) {
+      var row = taskListEl.querySelector('[data-id="' + focusId + '"]');
+      if (row) {
+        var target = row.querySelector(focusWhat === 'handle' ? '.task-handle' : 'textarea');
+        if (target) target.focus();
+      }
+    }
+  }
+
+  function taskIndex(id) {
+    for (var i = 0; i < current.items.length; i++) if (current.items[i].id === id) return i;
+    return -1;
+  }
+
+  function taskEl(t) {
+    var li = document.createElement('li');
+    li.className = 'task' + (t.done ? ' done' : '');
+    li.setAttribute('data-id', t.id);
+
+    var label = document.createElement('label');
+    label.className = 'check';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = !!t.done;
+    cb.setAttribute('aria-label', taskLabel(t));
+    var box = document.createElement('span');
+    box.className = 'box';
+    box.setAttribute('aria-hidden', 'true');
+    label.appendChild(cb); label.appendChild(box);
+
+    var ta = document.createElement('textarea');
+    ta.className = 'task-text';
+    ta.rows = 1;
+    ta.value = t.text;
+    ta.maxLength = 500;
+    ta.setAttribute('aria-label', 'Task');
+    ta.setAttribute('enterkeyhint', 'next');
+    ta.setAttribute('autocomplete', 'off');
+
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'task-btn task-del';
+    del.setAttribute('aria-label', 'Delete task');
+    del.appendChild(svgEl(ICON_X));
+
+    var handle = document.createElement('button');
+    handle.type = 'button';
+    handle.className = 'task-btn task-handle';
+    handle.setAttribute('aria-label', 'Move task. Use the up and down arrow keys, or drag.');
+    handle.appendChild(svgEl(ICON_GRIP));
+
+    li.appendChild(label); li.appendChild(ta); li.appendChild(del); li.appendChild(handle);
+
+    cb.addEventListener('change', function () {
+      t.done = cb.checked;
+      li.classList.toggle('done', t.done);
+      cb.setAttribute('aria-label', taskLabel(t));
+      updateProgress();
+      if (hasText(t)) markChanged();
+    });
+
+    ta.addEventListener('input', function () {
+      t.text = ta.value;
+      sizeTextarea(ta);
+      cb.setAttribute('aria-label', taskLabel(t));
+      updateProgress();
+      markChanged();
+    });
+
+    ta.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        enterInTask(t);
+      } else if (e.key === 'Backspace' && ta.value === '') {
+        e.preventDefault();
+        var i = taskIndex(t.id);
+        var prev = i > 0 ? current.items[i - 1].id : null;
+        removeTask(t.id, false);
+        if (prev) renderTasks(prev, 'text');
+        else newTaskEl.focus();
+      }
+    });
+
+    // Some phone keyboards report Enter this way instead of as a key press.
+    ta.addEventListener('beforeinput', function (e) {
+      if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph') {
+        e.preventDefault();
+        enterInTask(t);
+      }
+    });
+
+    del.addEventListener('click', function () { removeTask(t.id, true); });
+
+    handle.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowUp') { e.preventDefault(); moveTask(taskIndex(t.id), taskIndex(t.id) - 1, 'handle'); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); moveTask(taskIndex(t.id), taskIndex(t.id) + 1, 'handle'); }
+    });
+    handle.addEventListener('pointerdown', function (e) { startDrag(e, li, handle); });
+
+    return li;
+  }
+
+  function enterInTask(t) {
+    if (!hasText(t)) { newTaskEl.focus(); return; }   // Enter on an empty row = finished
+    var i = taskIndex(t.id);
+    var blank = { id: newId(), text: '', done: false };
+    current.items.splice(i + 1, 0, blank);
+    renderTasks(blank.id, 'text');
+  }
+
+  function addTaskFromInput() {
+    var text = newTaskEl.value.trim();
+    if (!text) { newTaskEl.focus(); return; }
+    var t = { id: newId(), text: text, done: false };
+    current.items.push(t);
+    newTaskEl.value = '';
+    renderTasks();
+    updateProgress();
+    markChanged();
+    var row = taskListEl.querySelector('[data-id="' + t.id + '"]');
+    if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
+    newTaskEl.focus();
+  }
+
+  function removeTask(id, withUndo) {
+    var i = taskIndex(id);
+    if (i === -1) return;
+    var t = current.items.splice(i, 1)[0];
+    var listId = current.id;
+    renderTasks();
+    updateProgress();
+    if (hasText(t)) {
+      markChanged();
+      if (withUndo) {
+        toast('Task deleted', 'Undo', function () {
+          if (!current || current.id !== listId) return;
+          current.items.splice(Math.min(i, current.items.length), 0, t);
+          renderTasks();
+          updateProgress();
+          markChanged();
+        });
+      }
+    }
+  }
+
+  function moveTask(from, to, focusWhat) {
+    if (from < 0 || to < 0 || to >= current.items.length || from === to) return;
+    var t = current.items.splice(from, 1)[0];
+    current.items.splice(to, 0, t);
+    renderTasks(t.id, focusWhat);
+    if (hasText(t)) markChanged();
+    announce('Moved to position ' + (to + 1) + ' of ' + current.items.length);
+  }
+
+  /* Drag to reorder (finger or mouse). Rows slide using transforms while you
+     drag; the real order is only changed when you let go. */
+  function startDrag(e, li, handle) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    var rows = Array.prototype.slice.call(taskListEl.children);
+    var from = rows.indexOf(li);
+    if (from === -1) return;
+    var startScroll = window.scrollY;
+    var startY = e.clientY;
+    var rects = rows.map(function (r) { return r.getBoundingClientRect(); });
+    var centers = rects.map(function (r) { return r.top + startScroll + r.height / 2; });
+    var h = rects[from].height;
+    var lastY = startY;
+    var to = from;
+    var active = true;
+    var raf = 0;
+
+    try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+    li.classList.add('dragging');
+    rows.forEach(function (r) { if (r !== li) r.classList.add('shifting'); });
+
+    function update() {
+      var dy = (lastY - startY) + (window.scrollY - startScroll);
+      li.style.transform = 'translateY(' + dy + 'px)';
+      var c = centers[from] + dy;
+      var idx = 0;
+      for (var j = 0; j < rows.length; j++) if (j !== from && centers[j] < c) idx++;
+      to = idx;
+      rows.forEach(function (r, j) {
+        if (j === from) return;
+        var shift = 0;
+        if (j > from && j <= to) shift = -h;
+        else if (j < from && j >= to) shift = h;
+        r.style.transform = shift ? 'translateY(' + shift + 'px)' : '';
+      });
+    }
+
+    function loop() {
+      if (!active) return;
+      var vh = window.innerHeight;
+      if (lastY < 90) window.scrollBy(0, -10);
+      else if (lastY > vh - 90) window.scrollBy(0, 10);
+      update();
+      raf = requestAnimationFrame(loop);
+    }
+
+    function onMove(ev) { lastY = ev.clientY; }
+
+    function finish(commit) {
+      if (!active) return;
+      active = false;
+      cancelAnimationFrame(raf);
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      handle.removeEventListener('pointercancel', onCancel);
+      rows.forEach(function (r) {
+        r.style.transform = '';
+        r.classList.remove('dragging');
+        r.classList.remove('shifting');
+      });
+      if (commit && to !== from) moveTask(from, to, 'handle');
+    }
+    function onUp() { finish(true); }
+    function onCancel() { finish(false); }
+
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointercancel', onCancel);
+    update();
+    raf = requestAnimationFrame(loop);
+  }
+
+  listTitleEl.addEventListener('input', function () {
+    if (!current || current.type !== 'list') return;
+    current.title = listTitleEl.value;
+    markChanged();
+  });
+  listTitleEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); newTaskEl.focus(); }
+  });
+
+  newTaskEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); addTaskFromInput(); }
+  });
+  $('add-task-btn').addEventListener('click', addTaskFromInput);
+
+  window.addEventListener('resize', function () {
+    if (!current) return;
+    if (current.type === 'note') autosize();
+    else Array.prototype.forEach.call(taskListEl.querySelectorAll('textarea'), sizeTextarea);
+  });
 
   /* =====================================================
      Theme chooser + version
@@ -570,13 +1000,13 @@
   $('version').textContent = APP_VERSION;
 
   /* =====================================================
-     Setup check (now inside Settings)
+     Setup check (inside Settings)
      ===================================================== */
 
-  function setRow(name, state2, text) {
+  function setRow(name, rowState, text) {
     var row = $('row-' + name);
     if (!row) return;
-    row.setAttribute('data-state', state2);
+    row.setAttribute('data-state', rowState);
     row.querySelector('.status-text').textContent = text;
   }
 
@@ -681,7 +1111,10 @@
     db = opened;
     return dbGetAll();
   }).then(function (all) {
-    items = all;
+    items = all.map(function (it) {
+      if (it.type === 'list' && !Array.isArray(it.items)) it.items = [];
+      return it;
+    });
   }).catch(function () {
     dbOk = false;
     $('storage-banner').hidden = false;
