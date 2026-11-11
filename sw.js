@@ -1,13 +1,14 @@
 /* TADA offline support.
    When you publish a new version of the app, change VERSION below
    so phones pick up the new files. */
-var VERSION = '1.2.0';
+var VERSION = '1.3.0';
 var CACHE = 'tada-shell-' + VERSION;
 var FILES = [
   './',
   'index.html',
   'styles.css',
   'app.js',
+  'calc.js',
   'manifest.webmanifest',
   'icon-192.png',
   'icon-512.png'

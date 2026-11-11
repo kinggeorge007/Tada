@@ -36,12 +36,20 @@
             </svg>
             TADA
           </h1>
+          <div class="top-actions">
+          <a class="icon-btn" id="open-calc" href="#calculator" aria-label="Calculator">
+            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="2.5" width="14" height="19" rx="3"/><rect x="8" y="5.5" width="8" height="3.5" rx="1"/>
+              <path d="M8.5 13h.01M12 13h.01M15.5 13h.01M8.5 16.5h.01M12 16.5h.01M15.5 16.5h.01"/>
+            </svg>
+          </a>
           <a class="icon-btn" id="open-settings" href="#settings" aria-label="Settings">
             <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="3"/>
               <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
             </svg>
           </a>
+          </div>
         </header>
 
         <div class="toolbar" role="toolbar" aria-label="Find and add">
@@ -136,6 +144,54 @@
       </main>
     </div>
 
+    <!-- ================= CALCULATOR ================= -->
+    <div id="view-calc" hidden>
+      <header class="top">
+        <button class="icon-btn" id="calc-back" type="button" aria-label="Back">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <h1 class="page-title" id="calc-title" tabindex="-1">Calculator</h1>
+        <button class="icon-btn" id="calc-history-btn" type="button" aria-label="History" aria-haspopup="dialog">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>
+        </button>
+      </header>
+      <main class="calc">
+        <section class="calc-display" aria-label="Display">
+          <div class="calc-main is-empty" id="calc-main">0</div>
+          <div class="calc-sub" id="calc-sub"></div>
+        </section>
+        <div class="keypad" id="keypad">
+          <button class="key fn" type="button" data-key="AC" aria-label="All clear">AC</button>
+          <button class="key fn" type="button" data-key="BACK" aria-label="Backspace">
+            <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 5H9l-6 7 6 7h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1z"/><path d="M17 9.5l-5 5M12 9.5l5 5"/></svg>
+          </button>
+          <button class="key fn" type="button" data-key="%" aria-label="Percent">%</button>
+          <button class="key op" type="button" data-key="/" aria-label="Divide">&divide;</button>
+
+          <button class="key" type="button" data-key="7">7</button>
+          <button class="key" type="button" data-key="8">8</button>
+          <button class="key" type="button" data-key="9">9</button>
+          <button class="key op" type="button" data-key="*" aria-label="Multiply">&times;</button>
+
+          <button class="key" type="button" data-key="4">4</button>
+          <button class="key" type="button" data-key="5">5</button>
+          <button class="key" type="button" data-key="6">6</button>
+          <button class="key op" type="button" data-key="-" aria-label="Minus">&minus;</button>
+
+          <button class="key" type="button" data-key="1">1</button>
+          <button class="key" type="button" data-key="2">2</button>
+          <button class="key" type="button" data-key="3">3</button>
+          <button class="key op" type="button" data-key="+" aria-label="Plus">+</button>
+
+          <button class="key fn" type="button" data-key="paren" aria-label="Brackets">( )</button>
+          <button class="key" type="button" data-key="0">0</button>
+          <button class="key" type="button" data-key="." aria-label="Decimal point">.</button>
+          <button class="key eq" type="button" data-key="=" aria-label="Equals">=</button>
+        </div>
+        <p class="sr-only" id="calc-live" role="status" aria-live="polite"></p>
+      </main>
+    </div>
+
     <!-- ================= SETTINGS ================= -->
     <div id="view-settings" hidden>
       <header class="top">
@@ -182,7 +238,7 @@
         <section class="card">
           <h2 class="card-title">About</h2>
           <ul class="rows">
-            <li class="row"><span class="row-label">Version</span><span class="value" id="version">1.2.0</span></li>
+            <li class="row"><span class="row-label">Version</span><span class="value" id="version">1.3.0</span></li>
             <li class="row"><span class="row-label">Your data</span><span class="value">Stays on this phone</span></li>
           </ul>
         </section>
@@ -215,6 +271,26 @@
     </div>
   </dialog>
 
+  <!-- Calculator history -->
+  <dialog id="dlg-history" class="sheet sheet-tall" aria-labelledby="hist-title">
+    <div class="sheet-head">
+      <h2 id="hist-title" class="sheet-title">History</h2>
+      <button class="btn-ghost btn-compact" id="hist-clear" type="button">Clear</button>
+    </div>
+    <ul class="hist" id="hist-list"></ul>
+    <p class="hint" id="hist-empty">No calculations yet.</p>
+    <button class="sheet-cancel" id="hist-close" type="button">Close</button>
+  </dialog>
+
+  <dialog id="dlg-clear" class="sheet sheet-center" aria-labelledby="clr-title" aria-describedby="clr-text">
+    <h2 id="clr-title" class="sheet-title">Clear history?</h2>
+    <p id="clr-text" class="sheet-body">All past calculations will be removed from this phone.</p>
+    <div class="sheet-actions">
+      <button class="btn-ghost" id="clr-cancel" type="button">Cancel</button>
+      <button class="btn-danger" id="clr-confirm" type="button">Clear</button>
+    </div>
+  </dialog>
+
   <!-- Messages -->
   <div class="toast" id="toast" role="status" aria-live="polite" hidden>
     <span id="toast-text"></span>
@@ -225,6 +301,7 @@
     <button class="btn-small" id="update-reload" type="button">Reload</button>
   </div>
 
+  <script src="calc.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

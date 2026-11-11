@@ -21,6 +21,7 @@
   --tag-note-bg: #FFF0CF;
   --tag-list: #17785A;
   --tag-list-bg: #DDF3EA;
+  --key-op: #E9E6FB;
   --scrim: rgba(20, 24, 22, 0.45);
   --radius: 18px;
   --radius-sm: 12px;
@@ -47,6 +48,7 @@
   --tag-note-bg: #3A2E12;
   --tag-list: #6FD6AC;
   --tag-list-bg: #173A2E;
+  --key-op: #2A2750;
   --scrim: rgba(0, 0, 0, 0.6);
 }
 
@@ -72,6 +74,7 @@
     --tag-note-bg: #3A2E12;
     --tag-list: #6FD6AC;
     --tag-list-bg: #173A2E;
+    --key-op: #2A2750;
     --scrim: rgba(0, 0, 0, 0.6);
   }
 }
@@ -858,3 +861,147 @@ dialog::backdrop { background: var(--scrim); }
 }
 
 .add-task .btn-small { min-height: 48px; padding: 0 20px; }
+
+/* ---------- Home header: calculator + settings buttons ---------- */
+.top-actions { display: flex; align-items: center; gap: 8px; }
+
+/* ---------- Calculator ---------- */
+.calc { padding: 4px 18px 0; }
+
+.calc-display {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 132px;
+  margin-bottom: 14px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: right;
+}
+
+.calc-main {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  font-size: 2.75rem;
+  font-weight: 700;
+  line-height: 1.15;
+  scrollbar-width: none;
+}
+
+.calc-main::-webkit-scrollbar { display: none; }
+.calc-main.is-empty { color: var(--muted); }
+.calc-main.size-m { font-size: 2.2rem; }
+.calc-main.size-s { font-size: 1.8rem; }
+.calc-main.size-xs { font-size: 1.45rem; }
+
+.calc-sub {
+  min-height: 1.6em;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 1.1875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calc-sub.is-error { color: var(--bad); font-weight: 600; }
+
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.key {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: clamp(56px, 8.4dvh, 76px);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1.625rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.key:active { filter: brightness(0.92); transform: scale(0.97); }
+
+.key.op { background: var(--key-op); border-color: transparent; color: var(--accent); font-size: 1.875rem; }
+.key.fn { background: var(--todo-soft); border-color: transparent; font-size: 1.375rem; }
+.key.eq { background: var(--accent); border-color: transparent; color: var(--on-accent); font-size: 1.875rem; }
+
+/* ---------- Calculator history sheet ---------- */
+dialog.sheet-tall { max-height: 82dvh; display: none; flex-direction: column; }
+dialog.sheet-tall[open] { display: flex; }
+
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.sheet-head .sheet-title { margin: 0; }
+
+.btn-compact { min-height: 44px; padding: 0 16px; }
+
+.hist {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.hist li {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.hist li:first-child { border-top: 0; }
+
+.hist-use {
+  flex: 1;
+  min-width: 0;
+  min-height: 64px;
+  padding: 8px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+}
+
+.hist-expr {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hist-res { display: block; overflow: hidden; font-size: 1.375rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+
+.hist-edit {
+  order: -1;
+  flex: none;
+  width: 56px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+

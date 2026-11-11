@@ -1,8 +1,8 @@
-/* TADA stage 3: notes, checklists, search, filters, theme, setup check. */
+/* TADA stage 4: notes, checklists, calculator, search, filters, theme, setup check. */
 (function () {
   'use strict';
 
-  var APP_VERSION = '1.2.0';
+  var APP_VERSION = '1.3.0';
   var THEME_KEY = 'tada.theme';
   var THEME_COLORS = { light: '#F4F5F1', dark: '#121316' };
   var SAVE_DELAY = 400;
@@ -212,6 +212,7 @@
     home: $('view-home'),
     note: $('view-editor'),
     list: $('view-list'),
+    calc: $('view-calc'),
     settings: $('view-settings')
   };
   var ready = false;
@@ -248,6 +249,13 @@
       }
       history.replaceState(null, '', location.pathname + location.search);
       hash = '';
+    }
+
+    if (hash === '#calculator' && Calc) {
+      showView('calc');
+      renderCalc();
+      $('calc-title').focus({ preventScroll: true });
+      return;
     }
 
     if (hash === '#settings') {
@@ -984,6 +992,317 @@
     if (current.type === 'note') autosize();
     else Array.prototype.forEach.call(taskListEl.querySelectorAll('textarea'), sizeTextarea);
   });
+
+
+  /* =====================================================
+     Calculator (the maths lives in calc.js)
+     ===================================================== */
+
+  var Calc = window.TadaCalc || null;   // if calc.js is missing the rest of TADA still works
+  if (!Calc) $('open-calc').hidden = true;
+
+  var HIST_KEY = 'tada.calc.history';
+  var HIST_MAX = 50;
+  var EXPR_MAX = 100;
+  var calc = { expr: '', justEvaluated: false, lastExpr: '', error: '' };
+  var calcHist = [];
+  var calcErrorTimer = null;
+
+  var ERROR_TEXT = {
+    div0: 'Can\u2019t divide by zero',
+    range: 'Number too large',
+    long: 'Expression too long',
+    empty: 'Type something first',
+    syntax: 'Invalid expression'
+  };
+
+  function isOpCh(c) { return c === '+' || c === '\u2212' || c === '\u00D7' || c === '\u00F7'; }
+  function isDigitCh(c) { return c !== '' && c >= '0' && c <= '9'; }
+  function openCount(e) {
+    var n = 0;
+    for (var i = 0; i < e.length; i++) {
+      if (e.charAt(i) === '(') n++;
+      else if (e.charAt(i) === ')') n--;
+    }
+    return n;
+  }
+
+  /* what gets worked out on "=": drop a dangling operator, close open brackets */
+  function normalizeExpr(e) {
+    e = e.replace(/[+\u2212\u00D7\u00F7.]+$/, '');
+    var open = openCount(e);
+    while (open-- > 0) e += ')';
+    return e;
+  }
+
+  function shown(x) { return Calc.format(x).replace(/-/g, '\u2212'); }
+
+  function lastNumber(e) { return /(\d*\.?\d*)$/.exec(e)[1]; }
+
+  function startFresh() {
+    if (calc.justEvaluated) { calc.expr = ''; calc.justEvaluated = false; }
+  }
+
+  function typeDigit(d) {
+    startFresh();
+    var e = calc.expr;
+    if (e.length >= EXPR_MAX) return;
+    var last = e.slice(-1);
+    if (last === ')' || last === '%') e += '\u00D7';
+    else if (lastNumber(e) === '0') e = e.slice(0, -1);       // 0 then 5 gives 5, never 05
+    calc.expr = e + d;
+  }
+
+  function typeDot() {
+    startFresh();
+    var e = calc.expr;
+    if (e.length >= EXPR_MAX) return;
+    var last = e.slice(-1);
+    if (last === ')' || last === '%') e += '\u00D70.';
+    else if (isDigitCh(last)) {
+      if (lastNumber(e).indexOf('.') !== -1) return;           // only one point per number
+      e += '.';
+    } else if (last === '.') return;
+    else e += '0.';
+    calc.expr = e;
+  }
+
+  function typeOp(op) {
+    calc.justEvaluated = false;                                  // carry on from the answer
+    var e = calc.expr;
+    if (e === '') { if (op === '\u2212') calc.expr = '\u2212'; return; }
+    if (e.length >= EXPR_MAX) return;
+    var last = e.slice(-1);
+    if (last === '.') { e = e.slice(0, -1); last = e.slice(-1); }
+    if (isOpCh(last)) {
+      if (op === '\u2212' && (last === '\u00D7' || last === '\u00F7')) { calc.expr = e + '\u2212'; return; }  // 5 x -3
+      var stripped = e.replace(/[+\u2212\u00D7\u00F7]+$/, '');
+      if (stripped === '' || stripped.slice(-1) === '(') return;
+      calc.expr = stripped + op;                                  // pressing another operator swaps it
+      return;
+    }
+    if (last === '(') { if (op === '\u2212') calc.expr = e + '\u2212'; return; }
+    calc.expr = e + op;
+  }
+
+  function typePercent() {
+    calc.justEvaluated = false;
+    var e = calc.expr;
+    if (e.length >= EXPR_MAX) return;
+    var last = e.slice(-1);
+    if (isDigitCh(last) || last === ')') calc.expr = e + '%';
+  }
+
+  function typeParen(kind) {
+    if (calc.justEvaluated) { if (kind === 'close') return; calc.expr = ''; calc.justEvaluated = false; }
+    var e = calc.expr;
+    var last = e.slice(-1);
+    var canClose = openCount(e) > 0 && (isDigitCh(last) || last === ')' || last === '%');
+    if (kind === 'smart') kind = canClose ? 'close' : 'open';
+    if (e.length >= EXPR_MAX - 1) return;
+    if (kind === 'close') { if (canClose) calc.expr = e + ')'; return; }
+    if (isDigitCh(last) || last === ')' || last === '%') e += '\u00D7';
+    else if (last === '.') e = e.slice(0, -1) + '\u00D7';
+    calc.expr = e + '(';
+  }
+
+  function calcEquals() {
+    if (calc.expr === '' || calc.justEvaluated) return;
+    var norm = normalizeExpr(calc.expr);
+    var r = norm === '' ? { ok: false, error: 'empty' } : Calc.evaluate(norm);
+    if (!r.ok) { showCalcError(r.error); return; }
+    var plain = Calc.toPlain(r.value);
+    addHistory(norm, plain);
+    calc.lastExpr = norm;
+    calc.expr = plain.replace('-', '\u2212');
+    calc.justEvaluated = true;
+    $('calc-live').textContent = norm + ' equals ' + shown(r.value);
+  }
+
+  function showCalcError(code) {
+    calc.error = ERROR_TEXT[code] || ERROR_TEXT.syntax;
+    $('calc-live').textContent = calc.error;
+    clearTimeout(calcErrorTimer);
+    var shown = calc.error;
+    calcErrorTimer = setTimeout(function () {
+      if (calc.error === shown) { calc.error = ''; renderCalc(); }
+    }, 2600);
+  }
+
+  function calcPress(key) {
+    if (!Calc) return;
+    calc.error = '';
+    if (key >= '0' && key <= '9' && key.length === 1) typeDigit(key);
+    else if (key === '.') typeDot();
+    else if (key === '+') typeOp('+');
+    else if (key === '-') typeOp('\u2212');
+    else if (key === '*') typeOp('\u00D7');
+    else if (key === '/') typeOp('\u00F7');
+    else if (key === '%') typePercent();
+    else if (key === '(' ) typeParen('open');
+    else if (key === ')') typeParen('close');
+    else if (key === 'paren') typeParen('smart');
+    else if (key === 'AC') { calc.expr = ''; calc.justEvaluated = false; calc.lastExpr = ''; }
+    else if (key === 'BACK') { calc.justEvaluated = false; calc.expr = calc.expr.slice(0, -1); }
+    else if (key === '=') calcEquals();
+    renderCalc();
+  }
+
+  function renderCalc() {
+    var main = $('calc-main');
+    var sub = $('calc-sub');
+    var text, subText = '';
+    sub.classList.remove('is-error');
+
+    if (calc.justEvaluated) {
+      text = shown(Number(calc.expr.replace('\u2212', '-')));
+      subText = calc.lastExpr + ' =';
+    } else {
+      text = calc.expr;
+      var norm = normalizeExpr(calc.expr);
+      if (norm !== '' && !/^\u2212?\d*\.?\d*$/.test(norm)) {      // show a live answer once it is more than a plain number
+        var r = Calc.evaluate(norm);
+        if (r.ok) subText = '= ' + shown(r.value);
+      }
+    }
+    if (calc.error) { subText = calc.error; sub.classList.add('is-error'); }
+
+    main.classList.toggle('is-empty', text === '');
+    main.textContent = text === '' ? '0' : text;
+    var n = main.textContent.length;
+    main.classList.toggle('size-m', n > 9 && n <= 13);
+    main.classList.toggle('size-s', n > 13 && n <= 18);
+    main.classList.toggle('size-xs', n > 18);
+    sub.textContent = subText;
+    main.scrollLeft = main.scrollWidth;                           // keep the newest digits in view
+  }
+
+  $('keypad').addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('button[data-key]') : null;
+    if (!btn) return;
+    calcPress(btn.getAttribute('data-key'));
+    // After a tap, let the keyboard (Enter, digits) go to the calculator, not to the key you touched.
+    // Keyboard users (detail 0) keep their focus where it is.
+    if (e.detail > 0) btn.blur();
+  });
+
+  $('calc-back').addEventListener('click', closeView);
+
+  /* keyboard (for a Bluetooth keyboard, or testing on a computer) */
+  document.addEventListener('keydown', function (e) {
+    if (views.calc.hidden || !Calc) return;
+    if (document.querySelector('dialog[open]')) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var k = e.key;
+    if ((k === 'Enter' || k === ' ') && e.target.closest && e.target.closest('button')) return;
+    var key = null;
+    if (/^[0-9]$/.test(k)) key = k;
+    else if (k === '.' || k === ',') key = '.';
+    else if (k === '+' || k === '-' || k === '*' || k === '/' || k === '%' || k === '(' || k === ')') key = k;
+    else if (k === 'x' || k === 'X') key = '*';
+    else if (k === 'Enter' || k === '=') key = '=';
+    else if (k === 'Backspace') key = 'BACK';
+    else if (k === 'Escape' || k === 'Delete') key = 'AC';
+    if (key === null) return;
+    e.preventDefault();
+    calcPress(key);
+  });
+
+  /* ---------- history ---------- */
+
+  function loadHistory() {
+    try {
+      var a = JSON.parse(localStorage.getItem(HIST_KEY) || '[]');
+      if (Array.isArray(a)) {
+        calcHist = a.filter(function (h) {
+          return h && typeof h.expr === 'string' && typeof h.result === 'string';
+        }).slice(0, HIST_MAX);
+      }
+    } catch (err) { calcHist = []; }
+  }
+
+  function saveHistory() {
+    try { localStorage.setItem(HIST_KEY, JSON.stringify(calcHist)); } catch (err) {}
+  }
+
+  function addHistory(expr, result) {
+    var top = calcHist[0];
+    if (top && top.expr === expr && top.result === result) top.ts = Date.now();
+    else calcHist.unshift({ id: newId(), expr: expr, result: result, ts: Date.now() });
+    calcHist = calcHist.slice(0, HIST_MAX);
+    saveHistory();
+  }
+
+  var dlgHistory = $('dlg-history');
+  var dlgClear = $('dlg-clear');
+
+  function renderHistory() {
+    var ul = $('hist-list');
+    ul.textContent = '';
+    $('hist-empty').hidden = calcHist.length > 0;
+    $('hist-clear').hidden = calcHist.length === 0;
+    calcHist.forEach(function (h) {
+      var li = document.createElement('li');
+      var use = document.createElement('button');
+      use.type = 'button';
+      use.className = 'hist-use';
+      use.setAttribute('aria-label', 'Use answer ' + shown(Number(h.result)) + ' from ' + h.expr);
+      var ex = document.createElement('span');
+      ex.className = 'hist-expr';
+      ex.textContent = h.expr + ' =';
+      var res = document.createElement('span');
+      res.className = 'hist-res';
+      res.textContent = shown(Number(h.result));
+      use.appendChild(ex); use.appendChild(res);
+      var edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'hist-edit';
+      edit.textContent = 'Edit';
+      edit.setAttribute('aria-label', 'Edit ' + h.expr);
+      use.addEventListener('click', function () { useHistoryResult(h); });
+      edit.addEventListener('click', function () { editHistory(h); });
+      li.appendChild(edit); li.appendChild(use);
+      ul.appendChild(li);
+    });
+  }
+
+  function useHistoryResult(h) {
+    var r = h.result.replace('-', '\u2212');
+    var last = calc.expr.slice(-1);
+    if (calc.expr === '' || calc.justEvaluated || !(isOpCh(last) || last === '(')) calc.expr = r;
+    else calc.expr += r;
+    calc.justEvaluated = false;
+    calc.error = '';
+    dlgHistory.close();
+    renderCalc();
+  }
+
+  function editHistory(h) {
+    calc.expr = h.expr;
+    calc.justEvaluated = false;
+    calc.error = '';
+    dlgHistory.close();
+    renderCalc();
+  }
+
+  $('calc-history-btn').addEventListener('click', function () {
+    renderHistory();
+    dlgHistory.showModal();
+  });
+  $('hist-close').addEventListener('click', function () { dlgHistory.close(); });
+  dlgHistory.addEventListener('click', function (e) { if (e.target === dlgHistory) dlgHistory.close(); });
+  $('hist-clear').addEventListener('click', function () { dlgClear.showModal(); });
+  $('clr-cancel').addEventListener('click', function () { dlgClear.close(); });
+  dlgClear.addEventListener('click', function (e) { if (e.target === dlgClear) dlgClear.close(); });
+  $('clr-confirm').addEventListener('click', function () {
+    calcHist = [];
+    saveHistory();
+    dlgClear.close();
+    renderHistory();
+    toast('History cleared');
+  });
+
+  if (Calc) loadHistory();
 
   /* =====================================================
      Theme chooser + version
