@@ -1,8 +1,8 @@
-/* TADA stage 4b: notes, checklists with price totals, calculator, search, filters, theme, setup check. */
+/* TADA stage 5: notes, checklists with price totals, calculator, bottom bar layout, search, filters, theme, setup check. */
 (function () {
   'use strict';
 
-  var APP_VERSION = '1.4.0';
+  var APP_VERSION = '1.5.0';
   var THEME_KEY = 'tada.theme';
   var THEME_COLORS = { light: '#F4F5F1', dark: '#121316' };
   var SAVE_DELAY = 400;
@@ -155,6 +155,15 @@
   }
 
   /* Toast message, with an optional action button such as Undo */
+  // On a card: a clock time for today, otherwise Yesterday / weekday / date
+  function formatCardTime(ts) {
+    var d = new Date(ts);
+    var n = new Date();
+    var startToday = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
+    if (ts >= startToday) return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return formatWhen(ts);
+  }
+
   var toastTimer = null;
   var toastAction = null;
 
@@ -220,6 +229,7 @@
 
   function showView(name) {
     Object.keys(views).forEach(function (k) { views[k].hidden = (k !== name); });
+    document.body.classList.toggle('has-bar', name === 'home');
     window.scrollTo(0, 0);
   }
 
@@ -374,28 +384,42 @@
     title.textContent = hasTitle ? it.title : (isList ? 'Untitled list' : 'Untitled note');
     head.appendChild(title);
     if (it.pinned) head.appendChild(pinIcon(16));
+    var time = document.createElement('time');
+    time.className = 'card-time';
+    time.textContent = formatCardTime(it.updatedAt);
+    head.appendChild(time);
     a.appendChild(head);
 
-    var preview = document.createElement('p');
-    preview.className = 'card-preview';
     var stats = isList ? listStats(it) : null;
 
-    if (isList) {
-      if (stats.total === 0) {
-        preview.textContent = 'No tasks yet';
-      } else if (stats.done === stats.total) {
-        preview.textContent = 'All tasks done';
-      } else {
-        var open = stats.tasks.filter(function (t) { return !t.done; });
-        var shown = open.slice(0, 3).map(function (t) { return t.text.trim(); }).join(' · ');
-        if (open.length > 3) shown += ' · +' + (open.length - 3) + ' more';
-        preview.textContent = shown;
+    if (isList && stats.total > 0 && stats.done < stats.total) {
+      // the first few tasks still to do, as bullets
+      var open = stats.tasks.filter(function (t) { return !t.done; });
+      var ul = document.createElement('ul');
+      ul.className = 'card-bullets';
+      open.slice(0, 4).forEach(function (t) {
+        var b = document.createElement('li');
+        b.textContent = t.text.trim();
+        ul.appendChild(b);
+      });
+      if (open.length > 4) {
+        var more = document.createElement('li');
+        more.className = 'more';
+        more.textContent = '+ ' + (open.length - 4) + ' more';
+        ul.appendChild(more);
       }
+      a.appendChild(ul);
     } else {
-      var body = (it.body || '').replace(/\s+/g, ' ').trim().slice(0, 160);
-      preview.textContent = body || 'No additional text';
+      var preview = document.createElement('p');
+      preview.className = 'card-preview';
+      if (isList) {
+        preview.textContent = stats.total === 0 ? 'No tasks yet' : 'All tasks done';
+      } else {
+        var body = (it.body || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+        preview.textContent = body || 'No additional text';
+      }
+      a.appendChild(preview);
     }
-    a.appendChild(preview);
 
     if (isList && stats.total > 0) {
       var bar = document.createElement('div');
@@ -419,9 +443,6 @@
       count.textContent = stats.done + ' of ' + stats.total + ' done';
       meta.appendChild(count);
     }
-    var when = document.createElement('span');
-    when.textContent = formatWhen(it.updatedAt);
-    meta.appendChild(when);
     a.appendChild(meta);
 
     li.appendChild(a);
@@ -451,7 +472,12 @@
     var filtering = state.query.trim() !== '' || state.filter !== 'all';
 
     if (filtering && visible.length) {
-      count.textContent = visible.length + (visible.length === 1 ? ' result' : ' results');
+      var kind = state.filter === 'note' ? 'notes' : state.filter === 'list' ? 'lists' : '';
+      if (state.query.trim() !== '') {
+        count.textContent = visible.length + (visible.length === 1 ? ' result' : ' results') + (kind ? ' in ' + kind + ' only' : '');
+      } else {
+        count.textContent = 'Showing ' + kind + ' only';
+      }
       count.hidden = false;
     } else {
       count.textContent = '';
@@ -1013,7 +1039,7 @@
      ===================================================== */
 
   var Calc = window.TadaCalc || null;   // if calc.js is missing the rest of TADA still works
-  if (!Calc) $('open-calc').hidden = true;
+  if (!Calc) { $('open-calc').hidden = true; $('list-calc').hidden = true; }
 
   var HIST_KEY = 'tada.calc.history';
   var HIST_MAX = 50;

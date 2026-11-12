@@ -44,29 +44,12 @@
             </svg>
           </a>
           <a class="icon-btn" id="open-settings" href="#settings" aria-label="Settings">
-            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+            <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2.6l8.1 4.7v9.4L12 21.4l-8.1-4.7V7.3z"/><circle cx="12" cy="12" r="2.8"/>
             </svg>
           </a>
           </div>
         </header>
-
-        <div class="toolbar" role="toolbar" aria-label="Find and add">
-          <button class="icon-btn" id="btn-search" type="button" aria-pressed="false" aria-label="Search">
-            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
-            </svg>
-          </button>
-          <button class="chip" id="chip-note" type="button" aria-pressed="false">Notes</button>
-          <button class="chip" id="chip-list" type="button" aria-pressed="false">Lists</button>
-          <span class="grow"></span>
-          <button class="add-btn" id="btn-add" type="button" aria-label="Add a note or checklist" aria-haspopup="dialog">
-            <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
-          </button>
-        </div>
 
         <div class="searchbar" id="searchbar" hidden>
           <input id="search-input" type="search" placeholder="Search notes and lists" aria-label="Search notes and lists" autocomplete="off" enterkeyhint="search">
@@ -81,6 +64,24 @@
         <p class="count" id="result-count" aria-live="polite" hidden></p>
         <div id="list-area"></div>
       </main>
+
+      <nav class="bottombar" aria-label="Search, filters and add">
+        <div class="bb-inner">
+          <button class="bb-btn" id="btn-search" type="button" aria-pressed="false" aria-label="Search">
+            <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          </button>
+          <button class="bb-btn" id="chip-note" type="button" aria-pressed="false" aria-label="Show notes only">
+            <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h12M3 11h8M3 16h6"/><path d="M13.5 19l6.2-6.2a1.6 1.6 0 0 1 2.3 2.3L15.8 21.3 12.5 22z"/></svg>
+          </button>
+          <button class="bb-btn" id="chip-list" type="button" aria-pressed="false" aria-label="Show lists only">
+            <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4.2" cy="6" r="1.1" fill="currentColor"/><circle cx="4.2" cy="12" r="1.1" fill="currentColor"/><circle cx="4.2" cy="18" r="1.1" fill="currentColor"/></svg>
+          </button>
+          <span class="grow"></span>
+          <button class="add-btn" id="btn-add" type="button" aria-label="Add a note or checklist" aria-haspopup="dialog">
+            <svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </div>
+      </nav>
     </div>
 
     <!-- ================= EDITOR ================= -->
@@ -149,6 +150,12 @@
         </div>
         <p class="sr-only" id="list-live" role="status" aria-live="polite"></p>
       </main>
+      <a class="fab-calc" id="list-calc" href="#calculator" aria-label="Open calculator">
+        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4.5" y="2.5" width="15" height="19" rx="3.2"/><rect x="8" y="5.8" width="8" height="3.4" rx="1"/>
+          <path d="M8.5 13h.01M12 13h.01M15.5 13h.01M8.5 16.8h.01M12 16.8h.01M15.5 16.8h.01"/>
+        </svg>
+      </a>
     </div>
 
     <!-- ================= CALCULATOR ================= -->
@@ -245,7 +252,7 @@
         <section class="card">
           <h2 class="card-title">About</h2>
           <ul class="rows">
-            <li class="row"><span class="row-label">Version</span><span class="value" id="version">1.4.0</span></li>
+            <li class="row"><span class="row-label">Version</span><span class="value" id="version">1.5.0</span></li>
             <li class="row"><span class="row-label">Your data</span><span class="value">Stays on this phone</span></li>
           </ul>
         </section>
