@@ -216,7 +216,59 @@
     return (neg ? '-' : '') + parts.join('.');
   }
 
-  var api = { evaluate: evaluate, format: format, toPlain: toPlain, MAX_LEN: MAX_LEN };
+
+  /* ---------- 5. Prices written inside checklist tasks ----------
+     "Noodles - 31,000"  ->  31000
+     A price counts only when it is the LAST thing in the task and comes right after
+     a dash or colon (optionally with a money sign or short code such as $ or UGX).
+     So "Milk 2L", "Buy 2 eggs", "Meet at 10:30" and "Pack 2-3" are NOT prices. */
+  // after the dash: an optional code like UGX / Rs. / US, an optional money sign like $ or the naira sign, then the number
+  var PRICE_RE = /^(.*?)([-\u2010-\u2015\u2212:])\s*(?:[A-Za-z]{1,4}\.?\s*)?(?:[^\w\s,.:\-\u2010-\u2015\u2212]\s*)?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?|\.\d+)$/;
+  var MAX_PRICE = 1e12;
+
+  function parsePrice(text) {
+    if (typeof text !== 'string' || text.length > 500) return null;
+    var t = text.trim().replace(/[.!;\s]+$/, '');           // allow a full stop after the price
+    var m = PRICE_RE.exec(t);
+    if (!m) return null;
+    var name = m[1];
+    if (name.trim() === '') return null;                     // needs something before the dash
+    if (/[-\u2010-\u2015\u2212:]$/.test(name.trim())) return null;   // "- -5" would be a negative price: not supported
+    var sepPos = name.length;
+    var before = name.charAt(name.length - 1);
+    var after = t.charAt(sepPos + 1);
+    var isDigit = function (c) { return c >= '0' && c <= '9' && c !== ''; };
+    if (isDigit(before) && isDigit(after)) return null;      // 2-3, 12-05, 10:30
+    var value = parseFloat(m[3].replace(/,/g, ''));
+    if (!isFinite(value) || value > MAX_PRICE) return null;
+    return value;
+  }
+
+  // items: [{ text, done }]  ->  { total, cleared, uncleared, count }
+  function listTotals(items) {
+    var total = 0, cleared = 0, uncleared = 0, count = 0;
+    (items || []).forEach(function (t) {
+      var p = parsePrice(t && t.text);
+      if (p === null) return;
+      count++;
+      total += p;
+      if (t.done) cleared += p; else uncleared += p;
+    });
+    var tidy = function (x) { return Number(x.toFixed(6)); };   // 0.1 + 0.2 shows as 0.3
+    return { total: tidy(total), cleared: tidy(cleared), uncleared: tidy(uncleared), count: count };
+  }
+
+  // 287700 -> "287,700"   1500.5 -> "1,500.5"   5 -> "5"
+  function formatMoney(x) {
+    if (typeof x !== 'number' || !isFinite(x)) return '0';
+    var neg = x < 0;
+    var parts = (Math.round(Math.abs(x) * 100) / 100).toFixed(2).split('.');
+    var dec = parts[1].replace(/0+$/, '');
+    var whole = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return (neg ? '-' : '') + whole + (dec ? '.' + dec : '');
+  }
+
+  var api = { evaluate: evaluate, format: format, toPlain: toPlain, parsePrice: parsePrice, listTotals: listTotals, formatMoney: formatMoney, MAX_LEN: MAX_LEN };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TadaCalc = api;
 })(typeof window !== 'undefined' ? window : this);

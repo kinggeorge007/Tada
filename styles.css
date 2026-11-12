@@ -1005,3 +1005,40 @@ dialog.sheet-tall[open] { display: flex; }
   cursor: pointer;
 }
 
+
+/* ---------- Checklist price totals ---------- */
+.totals {
+  margin: 0 0 14px;
+  padding: 12px 18px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.totals-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 2px 0;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.totals-main {
+  margin-bottom: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 1.1875rem;
+  font-weight: 800;
+}
+
+.totals-value { min-width: 0; overflow-wrap: anywhere; text-align: right; }
+.totals-main .totals-value { font-size: 1.5rem; }
+
+.totals-hint {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}

@@ -1,8 +1,8 @@
-/* TADA stage 4: notes, checklists, calculator, search, filters, theme, setup check. */
+/* TADA stage 4b: notes, checklists with price totals, calculator, search, filters, theme, setup check. */
 (function () {
   'use strict';
 
-  var APP_VERSION = '1.3.0';
+  var APP_VERSION = '1.4.0';
   var THEME_KEY = 'tada.theme';
   var THEME_COLORS = { light: '#F4F5F1', dark: '#121316' };
   var SAVE_DELAY = 400;
@@ -733,6 +733,20 @@
     bar.setAttribute('aria-valuenow', String(pct));
     bar.setAttribute('aria-valuetext', text);
     bar.classList.toggle('complete', s.total > 0 && s.done === s.total);
+    updateTotals();
+  }
+
+  /* Total / Cleared / Uncleared of the prices written in the tasks (see calc.js) */
+  function updateTotals() {
+    var box = $('totals');
+    var Money = window.TadaCalc;
+    if (!Money || !Money.listTotals || !current || current.type !== 'list') { box.hidden = true; return; }
+    var t = Money.listTotals(current.items);
+    box.hidden = t.count === 0;
+    if (t.count === 0) return;
+    $('total-all').textContent = Money.formatMoney(t.total);
+    $('total-done').textContent = Money.formatMoney(t.cleared);
+    $('total-open').textContent = Money.formatMoney(t.uncleared);
   }
 
   function taskLabel(t) {
