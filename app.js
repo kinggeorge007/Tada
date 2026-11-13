@@ -1,8 +1,8 @@
-/* TADA stage 5: notes, checklists with price totals, calculator, bottom bar layout, search, filters, theme, setup check. */
+/* TADA stage 6: rich-text notes, checklists with price totals, calculator, bottom bar layout, search, filters, theme, setup check. */
 (function () {
   'use strict';
 
-  var APP_VERSION = '1.5.0';
+  var APP_VERSION = '1.6.0';
   var THEME_KEY = 'tada.theme';
   var THEME_COLORS = { light: '#F4F5F1', dark: '#121316' };
   var SAVE_DELAY = 400;
@@ -616,8 +616,9 @@
     setStatus(inItems(item) ? (dbOk ? 'Saved' : 'Not saved') : 'Not saved yet');
     setEdited();
     if (item.type === 'note') {
-      bodyEl.value = item.body || '';
-      autosize();
+      setNoteContent(item);
+      hidePalette();
+      updateFmtState();
     } else {
       renderTasks();
       updateProgress();
@@ -687,20 +688,120 @@
   window.addEventListener('pagehide', flushSave);
 
   /* =====================================================
-     Notes
+     Notes (rich text: bold, italic, underline, colours)
+     A note keeps two copies of its text:
+       html - the formatted version (cleaned, see below)
+       body - plain text, used for search and the previews on the home screen
      ===================================================== */
 
   var titleEl = ui.note.title;
-  var bodyEl = $('note-body');
+  var bodyEl = $('note-body');          // a box you can type in (contenteditable)
+  var fmtbarEl = $('fmtbar');
+  var paletteEl = $('palette');
 
-  function autosize() {
-    bodyEl.style.height = 'auto';
-    bodyEl.style.height = bodyEl.scrollHeight + 'px';
+  /* ---- cleaning: only a short list of tags and two colour styles may ever be stored or shown ---- */
+  var TAG_MAP = { B: 'b', STRONG: 'b', I: 'i', EM: 'i', U: 'u', BR: 'br', DIV: 'div', P: 'div', SPAN: 'span', FONT: 'span' };
+  var DROP_WITH_CONTENT = { SCRIPT: 1, STYLE: 1, TEMPLATE: 1, NOSCRIPT: 1, IFRAME: 1, OBJECT: 1, EMBED: 1, SVG: 1, MATH: 1, HEAD: 1, TITLE: 1, TEXTAREA: 1, SELECT: 1, BUTTON: 1 };
+  var MAX_DEPTH = 40;
+  var scratch = document.createElement('span');
+
+  function safeColor(value, prop) {
+    if (!value || typeof value !== 'string' || !/^[#a-zA-Z0-9(),.%\s-]{1,40}$/.test(value)) return '';
+    scratch.style[prop] = '';
+    scratch.style[prop] = value;                 // the browser itself checks it is a real colour
+    var out = scratch.style[prop];
+    if (out === '' || out === 'transparent' || out === 'rgba(0, 0, 0, 0)') return '';
+    return out;
+  }
+
+  function cleanInto(src, dest, depth) {
+    var kids = src.childNodes;
+    for (var i = 0; i < kids.length; i++) {
+      var c = kids[i];
+      if (c.nodeType === 3) {
+        dest.appendChild(document.createTextNode(c.nodeValue));
+      } else if (c.nodeType === 1) {
+        var tag = c.tagName.toUpperCase();
+        if (DROP_WITH_CONTENT[tag]) continue;
+        var out = TAG_MAP[tag];
+        if (depth >= MAX_DEPTH) { cleanInto(c, dest, depth); continue; }   // far too deep: keep the words, drop the nesting
+        if (!out) { cleanInto(c, dest, depth + 1); continue; }              // unknown tag: keep its words only
+        if (out === 'br') { dest.appendChild(document.createElement('br')); continue; }
+        var el = document.createElement(out);
+        if (out === 'span') {
+          var color = tag === 'FONT' ? safeColor(c.getAttribute('color'), 'color') : safeColor(c.style && c.style.color, 'color');
+          var back = tag === 'FONT' ? '' : safeColor(c.style && c.style.backgroundColor, 'backgroundColor');
+          if (!color && !back) { cleanInto(c, dest, depth + 1); continue; }  // a span with nothing useful: unwrap
+          if (color) el.style.color = color;
+          if (back) el.style.backgroundColor = back;
+        }
+        cleanInto(c, el, depth + 1);
+        dest.appendChild(el);
+      }
+    }
+  }
+
+  function cleanedFragment(srcNode) {
+    var frag = document.createDocumentFragment();
+    cleanInto(srcNode, frag, 0);
+    return frag;
+  }
+
+  function serialize(frag) {
+    var tmp = document.createElement('div');
+    tmp.appendChild(frag);
+    return tmp.innerHTML;
+  }
+
+  function cleanHtmlString(html) {
+    if (typeof html !== 'string') return '';
+    var doc = new DOMParser().parseFromString(html, 'text/html');   // inert: nothing in it runs or loads
+    return serialize(cleanedFragment(doc.body));
+  }
+
+  var BLOCK_TAG = { DIV: 1, P: 1 };
+
+  function nodesToText(root) {
+    var out = '';
+    function nl() { if (out !== '' && out.charAt(out.length - 1) !== '\n') out += '\n'; }
+    (function walk(node) {
+      for (var i = 0; i < node.childNodes.length; i++) {
+        var c = node.childNodes[i];
+        if (c.nodeType === 3) out += c.nodeValue.replace(/\u00A0/g, ' ');
+        else if (c.nodeType === 1) {
+          if (c.tagName === 'BR') out += '\n';
+          else if (BLOCK_TAG[c.tagName]) { nl(); walk(c); nl(); }
+          else walk(c);
+        }
+      }
+    })(root);
+    return out.replace(/\n+$/, '');
+  }
+
+  function plainToFragment(text) {
+    var frag = document.createDocumentFragment();
+    String(text || '').split('\n').forEach(function (line) {
+      var d = document.createElement('div');
+      if (line === '') d.appendChild(document.createElement('br'));
+      else d.appendChild(document.createTextNode(line));
+      frag.appendChild(d);
+    });
+    return frag;
+  }
+
+  function setNoteContent(item) {
+    bodyEl.textContent = '';
+    if (typeof item.html === 'string' && item.html !== '') {
+      var doc = new DOMParser().parseFromString(item.html, 'text/html');
+      bodyEl.appendChild(cleanedFragment(doc.body));
+    } else if ((item.body || '') !== '') {
+      bodyEl.appendChild(plainToFragment(item.body));     // older plain-text notes
+    }
   }
 
   function createNote() {
     var now = Date.now();
-    draft = { id: newId(), type: 'note', title: '', body: '', pinned: false, createdAt: now, updatedAt: now };
+    draft = { id: newId(), type: 'note', title: '', body: '', html: '', pinned: false, createdAt: now, updatedAt: now };
     openedByApp = true;
     location.hash = '#note-' + draft.id;
   }
@@ -708,8 +809,10 @@
   function onNoteEdit() {
     if (!current || current.type !== 'note') return;
     current.title = titleEl.value;
-    current.body = bodyEl.value;
-    autosize();
+    var plain = nodesToText(bodyEl);
+    if (plain.trim() === '' && bodyEl.firstChild) bodyEl.textContent = '';   // lets the "Start writing…" hint come back
+    current.body = plain;
+    current.html = plain.trim() === '' ? '' : serialize(cleanedFragment(bodyEl));
     markChanged();
   }
 
@@ -718,6 +821,137 @@
   titleEl.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') { e.preventDefault(); bodyEl.focus(); }
   });
+
+  /* pasting and dropping: plain text only, so no hidden formatting or code can sneak in */
+  bodyEl.addEventListener('paste', function (e) {
+    e.preventDefault();
+    var text = (e.clipboardData && e.clipboardData.getData('text/plain')) || '';
+    if (text) document.execCommand('insertText', false, text);
+  });
+  bodyEl.addEventListener('drop', function (e) { e.preventDefault(); });
+
+  /* ---- the formatting bar ---- */
+  var savedRange = null;
+
+  function selectionInBody() {
+    var sel = window.getSelection();
+    return !!(sel && sel.rangeCount && bodyEl.contains(sel.anchorNode));
+  }
+
+  function ensureSelection() {
+    if (document.activeElement !== bodyEl) bodyEl.focus();
+    var sel = window.getSelection();
+    if (!selectionInBody()) {
+      sel.removeAllRanges();
+      if (savedRange) sel.addRange(savedRange);
+      else { var r = document.createRange(); r.selectNodeContents(bodyEl); r.collapse(false); sel.addRange(r); }
+    }
+  }
+
+  function updateFmtState() {
+    var inBody = views.note.hidden === false && selectionInBody();
+    ['bold', 'italic', 'underline'].forEach(function (cmd) {
+      var on = false;
+      try { on = inBody && document.queryCommandState(cmd); } catch (e) {}
+      $('fmt-' + cmd).setAttribute('aria-pressed', String(!!on));
+    });
+  }
+
+  document.addEventListener('selectionchange', function () {
+    if (views.note.hidden) return;
+    if (selectionInBody()) savedRange = window.getSelection().getRangeAt(0).cloneRange();
+    updateFmtState();
+  });
+
+  function runFormat(cmd, value) {
+    if (!current || current.type !== 'note') return;
+    ensureSelection();
+    var css = (cmd === 'foreColor' || cmd === 'hiliteColor');
+    try {
+      document.execCommand('styleWithCSS', false, css);
+      document.execCommand(cmd, false, value === undefined ? null : value);
+      document.execCommand('styleWithCSS', false, false);
+    } catch (e) {}
+    onNoteEdit();
+    updateFmtState();
+  }
+
+  // Tapping a bar button must not take the cursor (and the keyboard) away from the note.
+  fmtbarEl.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  paletteEl.addEventListener('mousedown', function (e) { e.preventDefault(); });
+
+  var TEXT_COLORS = [['Red', '#E5484D'], ['Orange', '#F76B15'], ['Green', '#30A46C'], ['Blue', '#3E63DD'], ['Purple', '#8E4EC6'], ['Pink', '#D6409F']];
+  var HILITE_COLORS = [['Yellow', '#FFE066'], ['Green', '#A8E6B8'], ['Blue', '#B3D4FF'], ['Pink', '#FFC2DD'], ['Orange', '#FFD3A3'], ['Grey', '#D9DCE0']];
+  var paletteKind = '';
+
+  function hidePalette() {
+    paletteKind = '';
+    paletteEl.hidden = true;
+    $('fmt-color').setAttribute('aria-expanded', 'false');
+    $('fmt-hilite').setAttribute('aria-expanded', 'false');
+  }
+
+  function showPalette(kind) {
+    var colors = kind === 'text' ? TEXT_COLORS : HILITE_COLORS;
+    paletteEl.textContent = '';
+    colors.forEach(function (c) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'swatch';
+      b.style.backgroundColor = c[1];
+      b.setAttribute('aria-label', (kind === 'text' ? 'Text colour ' : 'Highlight ') + c[0]);
+      b.addEventListener('click', function () { pickColor(kind, c[1]); });
+      paletteEl.appendChild(b);
+    });
+    var none = document.createElement('button');
+    none.type = 'button';
+    none.className = 'swatch swatch-none';
+    none.textContent = kind === 'text' ? 'Default' : 'None';
+    none.setAttribute('aria-label', kind === 'text' ? 'Default text colour' : 'No highlight');
+    none.addEventListener('click', function () { pickColor(kind, null); });
+    paletteEl.appendChild(none);
+    paletteKind = kind;
+    paletteEl.hidden = false;
+    $('fmt-color').setAttribute('aria-expanded', String(kind === 'text'));
+    $('fmt-hilite').setAttribute('aria-expanded', String(kind === 'highlight'));
+  }
+
+  function pickColor(kind, value) {
+    if (kind === 'text') {
+      runFormat('foreColor', value === null ? 'currentcolor' : value);   // currentcolor = the normal text colour of the theme
+      $('bar-color').style.backgroundColor = value === null ? '' : value;
+    } else {
+      runFormat('hiliteColor', value === null ? 'transparent' : value);
+      $('bar-hilite').style.backgroundColor = value === null ? '' : value;
+    }
+    hidePalette();
+  }
+
+  fmtbarEl.addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('button') : null;
+    if (!btn) return;
+    if (btn.hasAttribute('data-cmd')) { hidePalette(); runFormat(btn.getAttribute('data-cmd')); return; }
+    if (btn.id === 'fmt-clear') { hidePalette(); runFormat('removeFormat'); return; }
+    var kind = btn.id === 'fmt-color' ? 'text' : 'highlight';
+    if (paletteKind === kind) hidePalette(); else showPalette(kind);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !paletteEl.hidden) hidePalette();
+  });
+  bodyEl.addEventListener('focus', hidePalette);
+
+  /* keep the bar right above the on-screen keyboard (a backup for phones where the page does not resize itself) */
+  function placeBar() {
+    var vv = window.visualViewport;
+    var gap = vv ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0;
+    document.documentElement.style.setProperty('--kb', gap + 'px');
+  }
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', placeBar);
+    window.visualViewport.addEventListener('scroll', placeBar);
+  }
+  placeBar();
 
   /* =====================================================
      Checklists
@@ -1029,8 +1263,8 @@
 
   window.addEventListener('resize', function () {
     if (!current) return;
-    if (current.type === 'note') autosize();
-    else Array.prototype.forEach.call(taskListEl.querySelectorAll('textarea'), sizeTextarea);
+    if (current.type === 'note') return;
+    Array.prototype.forEach.call(taskListEl.querySelectorAll('textarea'), sizeTextarea);
   });
 
 

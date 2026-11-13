@@ -2,7 +2,7 @@
 <html lang="en" data-theme="system">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <title>TADA</title>
   <meta name="description" content="TADA: notes, checklists and a calculator that work offline.">
   <meta name="theme-color" content="#F4F5F1">
@@ -103,8 +103,23 @@
         <input id="note-title" class="note-title" type="text" placeholder="Title" maxlength="200" autocomplete="off" enterkeyhint="next">
         <p class="meta"><span id="save-status" aria-live="polite">Saved</span><span aria-hidden="true"> · </span><span id="edited-at"></span></p>
         <label class="sr-only" for="note-body">Note</label>
-        <textarea id="note-body" class="note-body" placeholder="Start writing…"></textarea>
+        <div id="note-body" class="note-body rich" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Note" data-placeholder="Start writing…" spellcheck="true" autocapitalize="sentences"></div>
       </main>
+      <div class="palette" id="palette" role="group" aria-label="Colours" hidden></div>
+      <div class="fmtbar" id="fmtbar" role="toolbar" aria-label="Text formatting">
+        <button class="fmt-btn" id="fmt-bold" type="button" data-cmd="bold" aria-pressed="false" aria-label="Bold"><b>B</b></button>
+        <button class="fmt-btn" id="fmt-italic" type="button" data-cmd="italic" aria-pressed="false" aria-label="Italic"><i>I</i></button>
+        <button class="fmt-btn" id="fmt-underline" type="button" data-cmd="underline" aria-pressed="false" aria-label="Underline"><u>U</u></button>
+        <button class="fmt-btn" id="fmt-color" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Text colour"><span class="fmt-A">A</span><span class="fmt-bar" id="bar-color"></span></button>
+        <button class="fmt-btn" id="fmt-hilite" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Highlight colour">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z"/></svg>
+          <span class="fmt-bar" id="bar-hilite"></span>
+        </button>
+        <button class="fmt-btn" id="fmt-clear" type="button" aria-label="Clear formatting">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3"/><path d="M5 20h6"/><path d="M13 4 8 20"/><path d="m15 15 5 5"/><path d="m20 15-5 5"/></svg>
+        </button>
+      </div>
+
     </div>
 
     <!-- ================= CHECKLIST EDITOR ================= -->
@@ -252,7 +267,7 @@
         <section class="card">
           <h2 class="card-title">About</h2>
           <ul class="rows">
-            <li class="row"><span class="row-label">Version</span><span class="value" id="version">1.5.0</span></li>
+            <li class="row"><span class="row-label">Version</span><span class="value" id="version">1.6.0</span></li>
             <li class="row"><span class="row-label">Your data</span><span class="value">Stays on this phone</span></li>
           </ul>
         </section>
