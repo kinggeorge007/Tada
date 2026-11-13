@@ -1,8 +1,8 @@
-/* TADA stage 6: rich-text notes, checklists with price totals, calculator, bottom bar layout, search, filters, theme, setup check. */
+/* TADA stage 7: rich-text notes with lists, checklists with price totals, calculator, bottom bar layout, search, filters, theme, setup check. */
 (function () {
   'use strict';
 
-  var APP_VERSION = '1.6.0';
+  var APP_VERSION = '1.7.0';
   var THEME_KEY = 'tada.theme';
   var THEME_COLORS = { light: '#F4F5F1', dark: '#121316' };
   var SAVE_DELAY = 400;
@@ -618,6 +618,7 @@
     if (item.type === 'note') {
       setNoteContent(item);
       hidePalette();
+      fmtbarEl.scrollLeft = 0;
       updateFmtState();
     } else {
       renderTasks();
@@ -700,7 +701,7 @@
   var paletteEl = $('palette');
 
   /* ---- cleaning: only a short list of tags and two colour styles may ever be stored or shown ---- */
-  var TAG_MAP = { B: 'b', STRONG: 'b', I: 'i', EM: 'i', U: 'u', BR: 'br', DIV: 'div', P: 'div', SPAN: 'span', FONT: 'span' };
+  var TAG_MAP = { B: 'b', STRONG: 'b', I: 'i', EM: 'i', U: 'u', BR: 'br', DIV: 'div', P: 'div', SPAN: 'span', FONT: 'span', UL: 'ul', OL: 'ol', LI: 'li' };
   var DROP_WITH_CONTENT = { SCRIPT: 1, STYLE: 1, TEMPLATE: 1, NOSCRIPT: 1, IFRAME: 1, OBJECT: 1, EMBED: 1, SVG: 1, MATH: 1, HEAD: 1, TITLE: 1, TEXTAREA: 1, SELECT: 1, BUTTON: 1 };
   var MAX_DEPTH = 40;
   var scratch = document.createElement('span');
@@ -711,6 +712,7 @@
     scratch.style[prop] = value;                 // the browser itself checks it is a real colour
     var out = scratch.style[prop];
     if (out === '' || out === 'transparent' || out === 'rgba(0, 0, 0, 0)') return '';
+    if (/^(inherit|initial|unset|revert|revert-layer|currentcolor)$/i.test(out)) return '';   // "no colour": Chrome writes these when it moves text around
     return out;
   }
 
@@ -761,6 +763,44 @@
 
   var BLOCK_TAG = { DIV: 1, P: 1 };
 
+  // The words of one list item, leaving out any lists nested inside it
+  function itemText(li) {
+    var out = '';
+    (function walk(node) {
+      for (var i = 0; i < node.childNodes.length; i++) {
+        var c = node.childNodes[i];
+        if (c.nodeType === 3) out += c.nodeValue.replace(/\u00A0/g, ' ');
+        else if (c.nodeType === 1) {
+          if (c.tagName === 'UL' || c.tagName === 'OL') continue;
+          if (c.tagName === 'BR') out += ' ';
+          else { if (BLOCK_TAG[c.tagName] && out !== '' && out.slice(-1) !== ' ') out += ' '; walk(c); }
+        }
+      }
+    })(li);
+    return out.replace(/\s+/g, ' ').trim();
+  }
+
+  // "• milk" / "1. milk", with two spaces of indent for each nested level
+  function listLines(list, depth, lines) {
+    var ordered = list.tagName === 'OL';
+    var n = 0;
+    for (var i = 0; i < list.childNodes.length; i++) {
+      var c = list.childNodes[i];
+      if (c.nodeType !== 1) continue;
+      if (c.tagName === 'LI') {
+        var text = itemText(c);
+        if (text !== '') { n++; lines.push(new Array(depth + 1).join('  ') + (ordered ? n + '. ' : '\u2022 ') + text); }
+        for (var k = 0; k < c.childNodes.length; k++) {
+          var sub = c.childNodes[k];
+          if (sub.nodeType === 1 && (sub.tagName === 'UL' || sub.tagName === 'OL')) listLines(sub, depth + 1, lines);
+        }
+      } else if (c.tagName === 'UL' || c.tagName === 'OL') {
+        listLines(c, depth + 1, lines);                 // a list placed straight inside a list
+      }
+    }
+    return lines;
+  }
+
   function nodesToText(root) {
     var out = '';
     function nl() { if (out !== '' && out.charAt(out.length - 1) !== '\n') out += '\n'; }
@@ -770,6 +810,10 @@
         if (c.nodeType === 3) out += c.nodeValue.replace(/\u00A0/g, ' ');
         else if (c.nodeType === 1) {
           if (c.tagName === 'BR') out += '\n';
+          else if (c.tagName === 'UL' || c.tagName === 'OL') {
+            var lines = listLines(c, 0, []);
+            if (lines.length) { nl(); out += lines.join('\n'); nl(); }
+          }
           else if (BLOCK_TAG[c.tagName]) { nl(); walk(c); nl(); }
           else walk(c);
         }
@@ -810,7 +854,7 @@
     if (!current || current.type !== 'note') return;
     current.title = titleEl.value;
     var plain = nodesToText(bodyEl);
-    if (plain.trim() === '' && bodyEl.firstChild) bodyEl.textContent = '';   // lets the "Start writing…" hint come back
+    if (plain.trim() === '' && bodyEl.firstChild && !bodyEl.querySelector('ul, ol')) bodyEl.textContent = '';   // lets the "Start writing…" hint come back (but keeps a bullet you just switched on)
     current.body = plain;
     current.html = plain.trim() === '' ? '' : serialize(cleanedFragment(bodyEl));
     markChanged();
@@ -848,13 +892,24 @@
     }
   }
 
+  function selectionInList() {
+    var sel = window.getSelection();
+    var n = sel && sel.rangeCount ? sel.anchorNode : null;
+    while (n && n !== bodyEl) { if (n.nodeName === 'LI') return true; n = n.parentNode; }
+    return false;
+  }
+
   function updateFmtState() {
     var inBody = views.note.hidden === false && selectionInBody();
-    ['bold', 'italic', 'underline'].forEach(function (cmd) {
+    [['fmt-bold', 'bold'], ['fmt-italic', 'italic'], ['fmt-underline', 'underline'],
+     ['fmt-ul', 'insertUnorderedList'], ['fmt-ol', 'insertOrderedList']].forEach(function (p) {
       var on = false;
-      try { on = inBody && document.queryCommandState(cmd); } catch (e) {}
-      $('fmt-' + cmd).setAttribute('aria-pressed', String(!!on));
+      try { on = inBody && document.queryCommandState(p[1]); } catch (e) {}
+      $(p[0]).setAttribute('aria-pressed', String(!!on));
     });
+    var inList = inBody && selectionInList();
+    $('fmt-indent').disabled = !inList;      // moving things sideways only makes sense inside a list
+    $('fmt-outdent').disabled = !inList;
   }
 
   document.addEventListener('selectionchange', function () {
@@ -938,6 +993,12 @@
 
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && !paletteEl.hidden) hidePalette();
+  });
+  bodyEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Tab' && selectionInList()) {        // with a keyboard: Tab moves a list item right, Shift+Tab left
+      e.preventDefault();
+      runFormat(e.shiftKey ? 'outdent' : 'indent');
+    }
   });
   bodyEl.addEventListener('focus', hidePalette);
 

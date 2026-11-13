@@ -482,6 +482,12 @@ body {
   font-size: 0.875rem;
 }
 
+.note-wrap {
+  color: var(--ink);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+
 .note-body {
   display: block;
   width: 100%;
@@ -490,10 +496,9 @@ body {
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--ink);
+  color: inherit;
   font: inherit;
-  font-size: 1.0625rem;
-  line-height: 1.6;
+  line-height: inherit;
   white-space: pre-wrap;              /* keeps double spaces and indents exactly as typed */
   overflow-wrap: anywhere;
   outline: none;
@@ -1129,7 +1134,7 @@ body.has-bar .update { bottom: calc(env(safe-area-inset-bottom, 0px) + 160px); }
 .rich b { font-weight: 800; }
 
 /* text on a highlight stays dark, so it can be read in dark mode too */
-.rich span[style^="background-color"]:not([style*="; color"]) { color: #1A1A1A; }
+.rich span[style^="background-color"]:not([style*="; color"]):not([style*="transparent"]) { color: #1A1A1A; }
 
 /* ---------- Formatting bar (sits just above the keyboard) ---------- */
 .fmtbar {
@@ -1140,23 +1145,29 @@ body.has-bar .update { bottom: calc(env(safe-area-inset-bottom, 0px) + 160px); }
   z-index: 7;
   display: flex;
   align-items: center;
-  justify-content: space-around;
+  justify-content: flex-start;
+  gap: 0;
   max-width: 640px;
   margin: 0 auto;
   padding: 6px 10px calc(6px + env(safe-area-inset-bottom, 0px));
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
   border-top: 1px solid var(--line);
   background: var(--surface);
 }
+
+.fmtbar::-webkit-scrollbar { display: none; }
 
 #view-editor[hidden] ~ .fmtbar { display: none; }
 
 .fmt-btn {
   position: relative;
   display: inline-flex;
-  flex: 1;
+  flex: 0 0 44px;
   align-items: center;
   justify-content: center;
-  max-width: 64px;
+  width: 44px;
   height: 48px;
   padding: 0;
   border: 0;
@@ -1168,6 +1179,8 @@ body.has-bar .update { bottom: calc(env(safe-area-inset-bottom, 0px) + 160px); }
   cursor: pointer;
   touch-action: manipulation;
 }
+
+.fmt-btn:disabled { opacity: 0.3; cursor: default; }
 
 .fmt-btn[aria-pressed="true"] {
   background: var(--accent);
@@ -1228,3 +1241,13 @@ body.has-bar .update { bottom: calc(env(safe-area-inset-bottom, 0px) + 160px); }
   font-size: 0.9375rem;
   font-weight: 700;
 }
+
+/* ---------- Bulleted and numbered lists inside notes ---------- */
+.rich ul, .rich ol { margin: 0.2em 0; padding-left: 1.7em; }
+.rich ul { list-style: disc; }
+.rich ul ul { list-style: circle; }
+.rich ul ul ul { list-style: square; }
+.rich ol { list-style: decimal; }
+.rich ol ol { list-style: lower-alpha; }
+.rich ol ol ol { list-style: lower-roman; }
+.rich li { padding-left: 0.15em; }

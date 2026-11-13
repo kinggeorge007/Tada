@@ -103,7 +103,7 @@
         <input id="note-title" class="note-title" type="text" placeholder="Title" maxlength="200" autocomplete="off" enterkeyhint="next">
         <p class="meta"><span id="save-status" aria-live="polite">Saved</span><span aria-hidden="true"> · </span><span id="edited-at"></span></p>
         <label class="sr-only" for="note-body">Note</label>
-        <div id="note-body" class="note-body rich" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Note" data-placeholder="Start writing…" spellcheck="true" autocapitalize="sentences"></div>
+        <div class="note-wrap"><div id="note-body" class="note-body rich" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Note" data-placeholder="Start writing…" spellcheck="true" autocapitalize="sentences"></div></div>
       </main>
       <div class="palette" id="palette" role="group" aria-label="Colours" hidden></div>
       <div class="fmtbar" id="fmtbar" role="toolbar" aria-label="Text formatting">
@@ -117,6 +117,18 @@
         </button>
         <button class="fmt-btn" id="fmt-clear" type="button" aria-label="Clear formatting">
           <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3"/><path d="M5 20h6"/><path d="M13 4 8 20"/><path d="m15 15 5 5"/><path d="m20 15-5 5"/></svg>
+        </button>
+        <button class="fmt-btn" id="fmt-ul" type="button" data-cmd="insertUnorderedList" aria-pressed="false" aria-label="Bulleted list">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4.2" cy="6" r="1.2" fill="currentColor"/><circle cx="4.2" cy="12" r="1.2" fill="currentColor"/><circle cx="4.2" cy="18" r="1.2" fill="currentColor"/></svg>
+        </button>
+        <button class="fmt-btn" id="fmt-ol" type="button" data-cmd="insertOrderedList" aria-pressed="false" aria-label="Numbered list">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h11M10 12h11M10 18h11"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg>
+        </button>
+        <button class="fmt-btn" id="fmt-outdent" type="button" data-cmd="outdent" aria-label="Move item left (outdent)" disabled>
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12H11M21 6H11M21 18H11"/><path d="m7 8-4 4 4 4"/></svg>
+        </button>
+        <button class="fmt-btn" id="fmt-indent" type="button" data-cmd="indent" aria-label="Move item right (indent)" disabled>
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12H11M21 6H11M21 18H11"/><path d="m3 8 4 4-4 4"/></svg>
         </button>
       </div>
 
@@ -267,7 +279,7 @@
         <section class="card">
           <h2 class="card-title">About</h2>
           <ul class="rows">
-            <li class="row"><span class="row-label">Version</span><span class="value" id="version">1.6.0</span></li>
+            <li class="row"><span class="row-label">Version</span><span class="value" id="version">1.7.0</span></li>
             <li class="row"><span class="row-label">Your data</span><span class="value">Stays on this phone</span></li>
           </ul>
         </section>
